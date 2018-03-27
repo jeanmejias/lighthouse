@@ -1033,13 +1033,15 @@ class Driver {
    * @return {Promise<void>}
    */
   async setThrottling(settings, passConfig) {
-    const throttleCpu = passConfig.useThrottling && !settings.disableCpuThrottling;
-    const throttleNetwork = passConfig.useThrottling && !settings.disableNetworkThrottling;
-    const cpuPromise = throttleCpu ?
-        emulation.enableCPUThrottling(this) :
+    if (settings.throttlingMethod !== 'devtools') {
+      return;
+    }
+
+    const cpuPromise = passConfig.useThrottling ?
+        emulation.enableCPUThrottling(this, settings.throttling) :
         emulation.disableCPUThrottling(this);
-    const networkPromise = throttleNetwork ?
-        emulation.enableNetworkThrottling(this) :
+    const networkPromise = passConfig.useThrottling ?
+        emulation.enableNetworkThrottling(this, settings.throttling) :
         emulation.disableNetworkThrottling(this);
 
     await Promise.all([cpuPromise, networkPromise]);
@@ -1056,8 +1058,7 @@ class Driver {
   }
 
   /**
-   * Enable internet connection, using emulated mobile settings if
-   * `options.settings.disableNetworkThrottling` is false.
+   * Enable internet connection, using emulated mobile settings if applicable.
    * @param {{settings: LH.ConfigSettings, passConfig: LH.ConfigPass}} options
    * @return {Promise<void>}
    */

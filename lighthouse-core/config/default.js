@@ -6,12 +6,20 @@
 'use strict';
 
 const Driver = require('../gather/driver');
+const emulation = require('../lib/emulation');
 
 /* eslint-disable max-len */
 
 module.exports = {
   settings: {
     maxWaitForLoad: Driver.MAX_WAIT_FOR_FULLY_LOADED,
+    throttlingMethod: 'devtools',
+    throttling: {
+      requestLatency: emulation.settings.TYPICAL_MOBILE_THROTTLING_METRICS.latency,
+      downloadThroughput: emulation.settings.TYPICAL_MOBILE_THROTTLING_METRICS.downloadThroughput,
+      uploadThroughput: emulation.settings.TYPICAL_MOBILE_THROTTLING_METRICS.uploadThroughput,
+      cpuSlowdownMultiplier: emulation.settings.CPU_THROTTLE_METRICS.rate,
+    },
   },
   passes: [{
     passName: 'defaultPass',

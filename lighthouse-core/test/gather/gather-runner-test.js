@@ -148,9 +148,9 @@ describe('GatherRunner', function() {
     return GatherRunner.setupDriver(driver, {}, {
       settings: {},
     }).then(_ => {
-      assert.equal(tests.calledDeviceEmulation, true);
-      assert.equal(tests.calledNetworkEmulation, true);
-      assert.equal(tests.calledCpuEmulation, true);
+      assert.ok(tests.calledDeviceEmulation, 'did not call device emulation');
+      assert.ok(!tests.calledNetworkEmulation, 'called network emulation');
+      assert.ok(!tests.calledCpuEmulation, 'called cpu emulation');
     });
   });
 
@@ -173,6 +173,8 @@ describe('GatherRunner', function() {
     return GatherRunner.setupDriver(driver, {}, {
       settings: {
         disableDeviceEmulation: true,
+        throttlingMethod: 'devtools',
+        throttling: {},
       },
     }).then(_ => {
       assert.equal(tests.calledDeviceEmulation, false);
@@ -181,7 +183,7 @@ describe('GatherRunner', function() {
     });
   });
 
-  it('stops network throttling when disableNetworkThrottling flag is true', () => {
+  it('stops throttling when not devtools', () => {
     const tests = {
       calledDeviceEmulation: false,
       calledNetworkEmulation: false,
@@ -199,18 +201,16 @@ describe('GatherRunner', function() {
 
     return GatherRunner.setupDriver(driver, {}, {
       settings: {
-        disableNetworkThrottling: true,
+        throttlingMethod: 'provided',
       },
     }).then(_ => {
-      assert.ok(tests.calledDeviceEmulation, 'called device emulation');
-      assert.deepEqual(tests.calledNetworkEmulation, [{
-        latency: 0, downloadThroughput: 0, uploadThroughput: 0, offline: false,
-      }]);
-      assert.ok(tests.calledCpuEmulation, 'called CPU emulation');
+      assert.ok(tests.calledDeviceEmulation, 'did not call device emulation');
+      assert.ok(!tests.calledNetworkEmulation, 'called network emulation');
+      assert.ok(!tests.calledCpuEmulation, 'called CPU emulation');
     });
   });
 
-  it('stops cpu throttling when disableCpuThrottling flag is true', () => {
+  it('sets throttling according to settings', () => {
     const tests = {
       calledDeviceEmulation: false,
       calledNetworkEmulation: false,
@@ -228,11 +228,19 @@ describe('GatherRunner', function() {
 
     return GatherRunner.setupDriver(driver, {}, {
       settings: {
-        disableCpuThrottling: true,
+        throttlingMethod: 'devtools',
+        throttling: {
+          requestLatency: 100,
+          downloadThroughput: 800,
+          uploadThroughput: 800,
+          cpuSlowdownMultiplier: 1,
+        },
       },
     }).then(_ => {
-      assert.ok(tests.calledDeviceEmulation, 'called device emulation');
-      assert.ok(tests.calledNetworkEmulation, 'called network emulation');
+      assert.ok(tests.calledDeviceEmulation, 'did not call device emulation');
+      assert.deepEqual(tests.calledNetworkEmulation, [{
+        latency: 100, downloadThroughput: 100, uploadThroughput: 100, offline: false,
+      }]);
       assert.deepEqual(tests.calledCpuEmulation, [{rate: 1}]);
     });
   });

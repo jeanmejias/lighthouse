@@ -6,6 +6,8 @@
 // @ts-nocheck
 'use strict';
 
+const NBSP = '\xa0';
+
 /**
  * Nexus 5X metrics adapted from emulated_devices/module.json
  */
@@ -118,8 +120,23 @@ function enableNexus5X(driver) {
   ]);
 }
 
-function enableNetworkThrottling(driver) {
-  return driver.sendCommand('Network.emulateNetworkConditions', TYPICAL_MOBILE_THROTTLING_METRICS);
+/**
+ * @param {Driver} driver
+ * @param {LH.ThrottlingSettings|undefined} throttlingSettings
+ * @return {Promise<void>}
+ */
+function enableNetworkThrottling(driver, throttlingSettings) {
+  let conditions = TYPICAL_MOBILE_THROTTLING_METRICS;
+  if (throttlingSettings) {
+    conditions = {
+      offline: false,
+      latency: throttlingSettings.requestLatency,
+      downloadThroughput: throttlingSettings.downloadThroughput / 8,
+      uploadThroughput: throttlingSettings.uploadThroughput / 8,
+    };
+  }
+
+  return driver.sendCommand('Network.emulateNetworkConditions', conditions);
 }
 
 function disableNetworkThrottling(driver) {
@@ -130,22 +147,60 @@ function goOffline(driver) {
   return driver.sendCommand('Network.emulateNetworkConditions', OFFLINE_METRICS);
 }
 
-function enableCPUThrottling(driver) {
-  return driver.sendCommand('Emulation.setCPUThrottlingRate', CPU_THROTTLE_METRICS);
+/**
+ * @param {Driver} driver
+ * @param {LH.ThrottlingSettings|undefined} throttlingSettings
+ * @return {Promise<void>}
+ */
+function enableCPUThrottling(driver, throttlingSettings) {
+  const rate = throttlingSettings
+    ? throttlingSettings.cpuSlowdownMultiplier
+    : CPU_THROTTLE_METRICS.rate;
+  return driver.sendCommand('Emulation.setCPUThrottlingRate', {rate});
 }
 
 function disableCPUThrottling(driver) {
   return driver.sendCommand('Emulation.setCPUThrottlingRate', NO_CPU_THROTTLE_METRICS);
 }
 
-function getEmulationDesc() {
-  const {latency, downloadThroughput, uploadThroughput} = TYPICAL_MOBILE_THROTTLING_METRICS;
-  const byteToMbit = bytes => (bytes / 1024 / 1024 * 8).toFixed(1);
+/**
+ * @param {LH.ConfigSettings} settings
+ * @return {deviceEmulation: string, cpuThrottling: string, networkThrottling: string}
+ */
+function getEmulationDesc(settings) {
+  let cpuThrottling;
+  let networkThrottling;
+  const byteToKbit = bytes => (bytes / 1024 * 8).toFixed();
+
+  switch (settings.throttlingMethod) {
+    case 'provided':
+      cpuThrottling = 'Provided by environment';
+      networkThrottling = 'Provided by environment';
+      break;
+    case 'devtools': {
+      const {cpuSlowdownMultiplier, requestLatency} = settings.throttling;
+      const down = byteToKbit(settings.throttling.downloadThroughput);
+      const up = byteToKbit(settings.throttling.uploadThroughput);
+
+      cpuThrottling = `${cpuSlowdownMultiplier}x slowdown (DevTools)`;
+      networkThrottling = `${requestLatency}${NBSP}ms HTTP RTT, ` +
+        `${down}${NBSP}Kbps down, ${up}${NBSP}Kbps up (DevTools)`;
+      break;
+    }
+    case 'simulate': {
+      const {cpuSlowdownMultiplier, rtt} = settings.throttling;
+      const throughput = byteToKbit(settings.throttling.throughput);
+      cpuThrottling = `${cpuSlowdownMultiplier}x slowdown (Simulated)`;
+      networkThrottling = `${rtt}${NBSP}ms TCP RTT, ` +
+        `${throughput}${NBSP}Kbps throughput (Simulated)`;
+      break;
+    }
+  }
+
   return {
-    'deviceEmulation': 'Nexus 5X',
-    'cpuThrottling': `${CPU_THROTTLE_METRICS.rate}x slowdown`,
-    'networkThrottling': `${latency}ms RTT, ${byteToMbit(downloadThroughput)}Mbps down, ` +
-        `${byteToMbit(uploadThroughput)}Mbps up`,
+    deviceEmulation: settings.disableDeviceEmulation ? 'Disabled' : 'Nexus 5X',
+    cpuThrottling,
+    networkThrottling,
   };
 }
 
